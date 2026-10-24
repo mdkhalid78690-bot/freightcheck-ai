@@ -1,19 +1,21 @@
 import streamlit as st
 import google.generativeai as genai
 
-# 1. HARDCODE YOUR FREE API KEY HERE SO CUSTOMERS DON'T SEE IT
-# Replace the text below with your actual long Gemini API key (e.g., "AIzaSy...")
-YOUR_GEMINI_API_KEY = "AQ.Ab8RN6J_2GzPQlgFQwQnsXUhV0irBMPnDkQWZkLW298Bqumx1Q"
-
-# 2. Page Configuration & Styling
+# 1. Page Configuration & Styling
 st.set_page_config(page_title="AI Logistics Auditor", page_icon="📦", layout="centered")
 st.title("📦 AI Logistics Document Auditor")
 st.write("Upload a Lorry Receipt, Bill of Lading, or Freight Invoice to instantly extract data and flag errors.")
 
+# 2. Automatically grab the hidden API key from Streamlit Secrets Management
+try:
+    YOUR_GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    YOUR_GEMINI_API_KEY = None
+
 # Configure the Gemini AI engine automatically in the background
-if YOUR_GEMINI_API_KEY and YOUR_GEMINI_API_KEY != "AQ.Ab8RN6J_2GzPQlgFQwQnsXUhV0irBMPnDkQWZkLW298Bqumx1Q":
-    genai.configure(api_key=AQ.Ab8RN6J_2GzPQlgFQwQnsXUhV0irBMPnDkQWZkLW298Bqumx1Q)
-    model = genai.GenerativeModel("gemini-2.5-flash")
+if YOUR_GEMINI_API_KEY:
+    genai.configure(api_key=YOUR_GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-3.8-flash")
 
     # 3. File Uploader Component
     uploaded_file = st.file_uploader("Upload Logistics Document (Text, PDF, or Image)", type=["txt", "pdf", "png", "jpg", "jpeg"])
@@ -55,4 +57,4 @@ if YOUR_GEMINI_API_KEY and YOUR_GEMINI_API_KEY != "AQ.Ab8RN6J_2GzPQlgFQwQnsXUhV0
             except Exception as e:
                 st.error(f"An error occurred: {e}")
 else:
-    st.error("Developer Setup Missing: Please paste your Gemini API Key inside the app.py code.")
+    st.error("Setup Incomplete: Please add the GEMINI_API_KEY to your Streamlit Cloud Secrets dashboard panel.")
