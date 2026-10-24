@@ -1,18 +1,19 @@
 import streamlit as st
 import google.generativeai as genai
 
-# 1. Page Configuration & Styling
+# 1. HARDCODE YOUR FREE API KEY HERE SO CUSTOMERS DON'T SEE IT
+# Replace the text below with your actual long Gemini API key (e.g., "AIzaSy...")
+YOUR_GEMINI_API_KEY = "AQ.Ab8RN6J_2GzPQlgFQwQnsXUhV0irBMPnDkQWZkLW298Bqumx1Q"
+
+# 2. Page Configuration & Styling
 st.set_page_config(page_title="AI Logistics Auditor", page_icon="📦", layout="centered")
 st.title("📦 AI Logistics Document Auditor")
-st.write("Upload a Bill of Lading, Freight Invoice, or Customs document to instantly extract data and flag errors.")
+st.write("Upload a Lorry Receipt, Bill of Lading, or Freight Invoice to instantly extract data and flag errors.")
 
-# 2. Get API Key securely from user or environment variables
-api_key = st.text_input("Enter your Gemini API Key:", type="password", help="Get a free key from Google AI Studio")
-
-if api_key:
-    # Configure the Gemini AI engine
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-3.8-flash")
+# Configure the Gemini AI engine automatically in the background
+if YOUR_GEMINI_API_KEY and YOUR_GEMINI_API_KEY != "PASTE_YOUR_ACTUAL_GEMINI_API_KEY_HERE":
+    genai.configure(api_key=YOUR_GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-2.5-flash")
 
     # 3. File Uploader Component
     uploaded_file = st.file_uploader("Upload Logistics Document (Text, PDF, or Image)", type=["txt", "pdf", "png", "jpg", "jpeg"])
@@ -22,9 +23,6 @@ if api_key:
             try:
                 # Read the file content
                 bytes_data = uploaded_file.read()
-                
-                # Convert bytes to string for processing (assumes text/readable format)
-                # For high-end PDFs/Images, Gemini can process bytes directly if structured correctly
                 document_text = bytes_data.decode("utf-8", errors="ignore")
 
                 # The exact prompt we instruct the AI to execute
@@ -32,14 +30,14 @@ if api_key:
                 You are an expert logistics auditor. Analyze the following document text carefully.
                 
                 Extract the following details precisely in clean bullet points:
-                1. Container Number (if visible)
+                1. Container/Vehicle Number (if visible)
                 2. Total Freight Cost & Currency
                 3. Origin Port / City
                 4. Destination Port / City
                 
                 Compliance & Error Check:
-                - Scan the document for missing mandatory fields (like signatures, weight, or dates).
-                - Look for any glaring mismatches or potential compliance compliance risks.
+                - Scan the document for missing mandatory fields (like signatures, weight, dates, or seals).
+                - Look for any glaring mismatches or potential compliance risks.
                 - Flag anything suspicious as a warning.
                 
                 Document Content:
@@ -57,4 +55,4 @@ if api_key:
             except Exception as e:
                 st.error(f"An error occurred: {e}")
 else:
-    st.info("Please enter your Gemini API Key to activate the AI scanning tool.")
+    st.error("Developer Setup Missing: Please paste your Gemini API Key inside the app.py code.")
