@@ -1,40 +1,39 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
+from google.genai import errors
 
 # 1. Page Configuration & Styling
 st.set_page_config(page_title="AI Logistics Auditor", page_icon="📦", layout="centered")
 st.title("📦 AI Logistics Document Auditor")
 st.write("Upload a Lorry Receipt, Bill of Lading, or Freight Invoice to instantly extract data and flag errors.")
 
-# 2. Grab and clean the API key from Streamlit Secrets
+# 2. Grab the hidden API key securely from Streamlit Secrets Management
 try:
-    # .strip() removes any accidental hidden spaces or line breaks from the secrets dashboard
     YOUR_GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"].strip()
 except Exception:
     YOUR_GEMINI_API_KEY = None
 
-# Configure the Gemini AI engine using standard direct key parameter format
+# Configure the updated SDK client layout
 if YOUR_GEMINI_API_KEY:
     try:
-        genai.configure(api_key=YOUR_GEMINI_API_KEY)
-        # Using the standard release flash model to bypass structural token issues
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        # The new SDK uses the standard client configuration layout
+        client = genai.Client(api_key=YOUR_GEMINI_API_KEY)
     except Exception as config_err:
         st.error(f"Configuration initialization error: {config_err}")
-        model = None
+        client = None
 
-    if model:
+    if client:
         # 3. File Uploader Component
         uploaded_file = st.file_uploader("Upload Logistics Document (Text, PDF, or Image)", type=["txt", "pdf", "png", "jpg", "jpeg"])
 
         if uploaded_file is not None:
             with st.spinner("Processing document with AI..."):
                 try:
-                    # Read the file content
+                    # Read the file content text safely
                     bytes_data = uploaded_file.read()
                     document_text = bytes_data.decode("utf-8", errors="ignore")
 
-                    # The exact prompt we instruct the AI to execute
+                    # The exact auditing instruction template
                     ai_prompt = f"""
                     You are an expert logistics auditor. Analyze the following document text carefully.
                     
@@ -53,15 +52,20 @@ if YOUR_GEMINI_API_KEY:
                     {document_text}
                     """
 
-                    # Generate the audit response using standard generation call parameters
-                    response = model.generate_content(ai_prompt)
+                    # Generate content using the stable flash core engine model
+                    response = client.models.generate_content(
+                        model='gemini-2.5-flash',
+                        contents=ai_prompt,
+                    )
                     
                     # 4. Display Results to the User
                     st.success("Audit Complete!")
                     st.subheader("📋 Extraction & Audit Report")
                     st.write(response.text)
 
+                except errors.APIError as api_e:
+                    st.error(f"Google API Error encountered: {api_e}")
                 except Exception as e:
-                    st.error(f"An error occurred during analysis: {e}")
+                    st.error(f"An unexpected error occurred during processing: {e}")
 else:
     st.error("Setup Incomplete: Please add the GEMINI_API_KEY to your Streamlit Cloud Secrets dashboard panel.")
