@@ -6,55 +6,62 @@ st.set_page_config(page_title="AI Logistics Auditor", page_icon="📦", layout="
 st.title("📦 AI Logistics Document Auditor")
 st.write("Upload a Lorry Receipt, Bill of Lading, or Freight Invoice to instantly extract data and flag errors.")
 
-# 2. Automatically grab the hidden API key from Streamlit Secrets Management
+# 2. Grab and clean the API key from Streamlit Secrets
 try:
-    YOUR_GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+    # .strip() removes any accidental hidden spaces or line breaks from the secrets dashboard
+    YOUR_GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"].strip()
 except Exception:
     YOUR_GEMINI_API_KEY = None
 
-# Configure the Gemini AI engine automatically in the background
+# Configure the Gemini AI engine using standard direct key parameter format
 if YOUR_GEMINI_API_KEY:
-    genai.configure(api_key=YOUR_GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-3.8-flash")
+    try:
+        genai.configure(api_key=YOUR_GEMINI_API_KEY)
+        # Using the standard release flash model to bypass structural token issues
+        model = genai.GenerativeModel("gemini-2.5-flash")
+    except Exception as config_err:
+        st.error(f"Configuration initialization error: {config_err}")
+        model = None
 
-    # 3. File Uploader Component
-    uploaded_file = st.file_uploader("Upload Logistics Document (Text, PDF, or Image)", type=["txt", "pdf", "png", "jpg", "jpeg"])
+    if model:
+        # 3. File Uploader Component
+        uploaded_file = st.file_uploader("Upload Logistics Document (Text, PDF, or Image)", type=["txt", "pdf", "png", "jpg", "jpeg"])
 
-    if uploaded_file is not None:
-        with st.spinner("Processing document with AI..."):
-            try:
-                # Read the file content
-                bytes_data = uploaded_file.read()
-                document_text = bytes_data.decode("utf-8", errors="ignore")
+        if uploaded_file is not None:
+            with st.spinner("Processing document with AI..."):
+                try:
+                    # Read the file content
+                    bytes_data = uploaded_file.read()
+                    document_text = bytes_data.decode("utf-8", errors="ignore")
 
-                # The exact prompt we instruct the AI to execute
-                ai_prompt = f"""
-                You are an expert logistics auditor. Analyze the following document text carefully.
-                
-                Extract the following details precisely in clean bullet points:
-                1. Container/Vehicle Number (if visible)
-                2. Total Freight Cost & Currency
-                3. Origin Port / City
-                4. Destination Port / City
-                
-                Compliance & Error Check:
-                - Scan the document for missing mandatory fields (like signatures, weight, dates, or seals).
-                - Look for any glaring mismatches or potential compliance risks.
-                - Flag anything suspicious as a warning.
-                
-                Document Content:
-                {document_text}
-                """
+                    # The exact prompt we instruct the AI to execute
+                    ai_prompt = f"""
+                    You are an expert logistics auditor. Analyze the following document text carefully.
+                    
+                    Extract the following details precisely in clean bullet points:
+                    1. Container/Vehicle Number (if visible)
+                    2. Total Freight Cost & Currency
+                    3. Origin Port / City
+                    4. Destination Port / City
+                    
+                    Compliance & Error Check:
+                    - Scan the document for missing mandatory fields (like signatures, weight, dates, or seals).
+                    - Look for any glaring mismatches or potential compliance risks.
+                    - Flag anything suspicious as a warning.
+                    
+                    Document Content:
+                    {document_text}
+                    """
 
-                # Generate the audit response
-                response = model.generate_content(ai_prompt)
-                
-                # 4. Display Results to the User
-                st.success("Audit Complete!")
-                st.subheader("📋 Extraction & Audit Report")
-                st.write(response.text)
+                    # Generate the audit response using standard generation call parameters
+                    response = model.generate_content(ai_prompt)
+                    
+                    # 4. Display Results to the User
+                    st.success("Audit Complete!")
+                    st.subheader("📋 Extraction & Audit Report")
+                    st.write(response.text)
 
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
+                except Exception as e:
+                    st.error(f"An error occurred during analysis: {e}")
 else:
     st.error("Setup Incomplete: Please add the GEMINI_API_KEY to your Streamlit Cloud Secrets dashboard panel.")
