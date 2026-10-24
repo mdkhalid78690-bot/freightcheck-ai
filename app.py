@@ -3,7 +3,7 @@ import google.generativeai as genai
 
 # 1. HARDCODE YOUR FREE API KEY HERE SO CUSTOMERS DON'T SEE IT
 # Replace the text below with your actual long Gemini API key (e.g., "AIzaSy...")
-YOUR_GEMINI_API_KEY = "AQ.Ab8RN6J_2GzPQlgFQwQnsXUhV0irBMPnDkQWZkLW298Bqumx1Q"
+YOUR_GEMINI_API_KEY = AQ.Ab8RN6J_2GzPQlgFQwQnsXUhV0irBMPnDkQWZkLW298Bqumx1Q
 
 # 2. Page Configuration & Styling
 st.set_page_config(page_title="AI Logistics Auditor", page_icon="📦", layout="centered")
