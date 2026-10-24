@@ -54,7 +54,7 @@ if YOUR_GEMINI_API_KEY:
 
                     # Generate content using the stable flash core engine model
                     response = client.models.generate_content(
-                        model='gemini-2.5-flash',
+                        model='gemini-3.8-flash',
                         contents=ai_prompt,
                     )
                     
