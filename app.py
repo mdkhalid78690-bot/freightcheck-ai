@@ -12,7 +12,7 @@ st.write("Upload a Lorry Receipt, Bill of Lading, or Freight Invoice to instantl
 
 # Configure the Gemini AI engine automatically in the background
 if YOUR_GEMINI_API_KEY and YOUR_GEMINI_API_KEY != "AQ.Ab8RN6J_2GzPQlgFQwQnsXUhV0irBMPnDkQWZkLW298Bqumx1Q":
-    genai.configure(api_key=YOUR_GEMINI_API_KEY)
+    genai.configure(api_key=AQ.Ab8RN6J_2GzPQlgFQwQnsXUhV0irBMPnDkQWZkLW298Bqumx1Q)
     model = genai.GenerativeModel("gemini-2.5-flash")
 
     # 3. File Uploader Component
