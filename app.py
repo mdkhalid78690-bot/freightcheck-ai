@@ -145,7 +145,7 @@ Provide a clear verdict: **APPROVED**, **HOLD FOR REVIEW**, or **REJECTED**, fol
                   thinking_config=types.ThinkingConfig(thinking_budget=0),
                   temperature=0.2,
                   http_options=types.HttpOptions(
-                      timeout=20.0
+                      timeout=60.0
                   ),  # Caps wait time to 20 seconds max
               ),
           )
