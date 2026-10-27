@@ -10,7 +10,6 @@ st.set_page_config(
     layout="wide",
 )
 
-# Custom header styling
 st.markdown(
     """
     <style>
@@ -43,7 +42,6 @@ if not YOUR_GEMINI_API_KEY:
   )
   st.stop()
 
-# Initialize Gemini Client
 try:
   client = genai.Client(api_key=YOUR_GEMINI_API_KEY)
 except Exception as config_err:
@@ -61,7 +59,6 @@ with col_upload:
   )
 
   if uploaded_file is not None:
-    # Show preview if image
     if uploaded_file.type in ["image/png", "image/jpeg", "image/jpg"]:
       st.image(
           uploaded_file,
@@ -83,35 +80,33 @@ with col_result:
     )
 
     if audit_button:
-      with st.spinner("Extracting parameters and verifying compliance..."):
-        try:
-          bytes_data = uploaded_file.read()
+      # Reset file pointer to prevent empty 0-byte reads
+      uploaded_file.seek(0)
+      bytes_data = uploaded_file.read()
 
-          # Determine MIME type safely
-          mime_type = uploaded_file.type
-          if not mime_type:
-            if uploaded_file.name.lower().endswith(".pdf"):
-              mime_type = "application/pdf"
-            elif uploaded_file.name.lower().endswith((".png", ".jpg", ".jpeg")):
-              mime_type = "image/jpeg"
-            else:
-              mime_type = "text/plain"
+      mime_type = uploaded_file.type
+      if not mime_type:
+        if uploaded_file.name.lower().endswith(".pdf"):
+          mime_type = "application/pdf"
+        elif uploaded_file.name.lower().endswith((".png", ".jpg", ".jpeg")):
+          mime_type = "image/jpeg"
+        else:
+          mime_type = "text/plain"
 
-          # Fast routing: direct string for TXT, multimodal Part for PDF/Images
-          if (
-              mime_type == "text/plain"
-              or uploaded_file.name.lower().endswith(".txt")
-          ):
-            text_str = bytes_data.decode("utf-8", errors="ignore")
-            document_payload = (
-                f"--- ATTACHED FREIGHT DOCUMENT CONTENT ---\n{text_str}"
-            )
-          else:
-            document_payload = types.Part.from_bytes(
-                data=bytes_data, mime_type=mime_type
-            )
+      if (
+          mime_type == "text/plain"
+          or uploaded_file.name.lower().endswith(".txt")
+      ):
+        text_str = bytes_data.decode("utf-8", errors="ignore")
+        document_payload = (
+            f"--- ATTACHED FREIGHT DOCUMENT CONTENT ---\n{text_str}"
+        )
+      else:
+        document_payload = types.Part.from_bytes(
+            data=bytes_data, mime_type=mime_type
+        )
 
-          ai_prompt = """
+      ai_prompt = """
 You are an expert freight and logistics compliance auditor. Conduct a rigorous, forensic audit of the attached document.
 
 Structure your response strictly using these Markdown sections:
@@ -137,33 +132,44 @@ Scan every field and mark status clearly with [CLEAN] or [WARNING]:
 Provide a clear verdict: **APPROVED**, **HOLD FOR REVIEW**, or **REJECTED**, followed by the exact operational next step for the dispatch/billing manager.
 """
 
-          # Run Gemini 3.8 Flash with strict 20s timeout and zero thinking delay
-          response = client.models.generate_content(
+      audit_container = st.empty()
+      full_report = ""
+
+      with st.spinner("Connecting to FreightCheck Audit Engine..."):
+        try:
+          # Stream the response live to avoid read timeouts
+          response_stream = client.models.generate_content_stream(
               model="gemini-3.8-flash",
               contents=[document_payload, ai_prompt],
               config=types.GenerateContentConfig(
                   thinking_config=types.ThinkingConfig(thinking_budget=0),
-                  temperature=0.2,
-                  http_options=types.HttpOptions(
-                      timeout=60.0
-                  ),  # Caps wait time to 20 seconds max
+                  temperature=0.1,
               ),
           )
 
-          st.success("Audit Completed Successfully")
-          st.markdown(response.text)
+          for chunk in response_stream:
+            if chunk.text:
+              full_report += chunk.text
+              audit_container.markdown(full_report)
 
-          # Export capability for prospects
+          st.success("Audit Completed Successfully")
+
           st.download_button(
               label="📥 Download Audit Summary (.txt)",
-              data=response.text,
+              data=full_report,
               file_name=f"FreightCheck_Audit_{uploaded_file.name}.txt",
               mime="text/plain",
               use_container_width=True,
           )
 
         except errors.APIError as api_err:
-          st.error(f"Gemini API Error: {api_err}")
+          if "503" in str(api_err):
+            st.warning(
+                "⚡ Google API capacity surge detected. Please wait 10 seconds"
+                " and click retry."
+            )
+          else:
+            st.error(f"Gemini API Error: {api_err}")
         except Exception as err:
           st.error(f"Processing Error: {err}")
   else:
