@@ -137,13 +137,16 @@ Scan every field and mark status clearly with [CLEAN] or [WARNING]:
 Provide a clear verdict: **APPROVED**, **HOLD FOR REVIEW**, or **REJECTED**, followed by the exact operational next step for the dispatch/billing manager.
 """
 
-          # Run Gemini 3.8 Flash with thinking_budget=0 for instant sub-5-second output
+          # Run Gemini 3.8 Flash with strict 20s timeout and zero thinking delay
           response = client.models.generate_content(
               model="gemini-3.8-flash",
               contents=[document_payload, ai_prompt],
               config=types.GenerateContentConfig(
                   thinking_config=types.ThinkingConfig(thinking_budget=0),
                   temperature=0.2,
+                  http_options=types.HttpOptions(
+                      timeout=20.0
+                  ),  # Caps wait time to 20 seconds max
               ),
           )
 
