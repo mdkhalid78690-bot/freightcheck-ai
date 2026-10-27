@@ -1,17 +1,16 @@
-from google import genai
-from google.genai import errors
-from google.genai import types
 import streamlit as st
+from google import genai
+from google.genai import types
+from google.genai import errors
 
 # 1. Page Configuration & Professional Styling
 st.set_page_config(
-    page_title="FreightCheck AI | Logistics Document Auditor",
-    page_icon="📦",
-    layout="wide",
+    page_title="FreightCheck AI | Logistics Document Auditor", 
+    page_icon="📦", 
+    layout="wide"
 )
 
-st.markdown(
-    """
+st.markdown("""
     <style>
     .metric-card {
         background-color: #f8f9fa;
@@ -20,93 +19,146 @@ st.markdown(
         border-left: 4px solid #0066cc;
     }
     </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 st.title("📦 FreightCheck AI")
-st.caption(
-    "Enterprise Logistics Document Auditor & Discrepancy Detection Engine"
-)
+st.caption("Enterprise Logistics Document Auditor & Discrepancy Detection Engine")
 
 # 2. Secure API Key Retrieval
 try:
-  YOUR_GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"].strip()
+    YOUR_GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"].strip()
 except Exception:
-  YOUR_GEMINI_API_KEY = None
+    YOUR_GEMINI_API_KEY = None
 
-if not YOUR_GEMINI_API_KEY:
-  st.error(
-      "Setup Incomplete: Please add `GEMINI_API_KEY` to your Streamlit Cloud"
-      " Secrets dashboard."
-  )
-  st.stop()
+SAMPLE_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 
-try:
-  client = genai.Client(api_key=YOUR_GEMINI_API_KEY)
-except Exception as config_err:
-  st.error(f"Client initialization error: {config_err}")
-  st.stop()
+* **Document Type:** Lorry Receipt / Consignment Note (Bilty)
+* **Document Number & Date:** DEC-BLR-2026-88412 | 27-10-2026
+* **Carrier / Transporter Name:** Deccan Express Logistics Pvt Ltd
+* **Consignor (Sender):** Apex Industrial Tools Pvt Ltd (GSTIN: 29AABCA1234F1Z5) | Invoice: INV-45920 (Value: INR 8,45,000)
+* **Consignee (Receiver):** Metro Hyper Retail Logistics Hub (GSTIN: 29XYZPA9876Q1Z2) | E-Way Bill: 531098234710 (Expiry: 28-10-2026)
+* **Origin & Destination:** Peenya Industrial Area, Bengaluru, Karnataka ➔ Whitefield Warehouse Cluster, Bengaluru, Karnataka
+* **Vehicle / Container / Seal Number:** Vehicle: KA-01-AG-4912 | Seal Number: SL-99214-B (Intact) | Driver: Ramesh Kumar (+91 98450 12345)
+* **Weight & Volume (Gross / Net / Chargeable):** 
+  * Declared Gross Cargo Weight (Invoice): 4,850 KG
+  * Weighbridge Gross Weight (Laden Truck): 5,200 KG
+  * Tare Weight (Truck): 3,200 KG
+  * Actual Net Cargo Weight: 2,000 KG
+  * Quantity / Package: 40 Wooden Crates
+* **Total Freight Charges & Currency:** 
+  * Total: INR 20,500
+  * Base Freight: INR 18,500
+  * Loading / Hamali: INR 1,200
+  * Toll / Surcharge: INR 800
+  * Detention / Demurrage: Not specified
+  * Fuel Surcharge: Unitemized / absorbed in freight
+  * GST / Taxes: Not explicitly itemized (RCM / Forward Charge status absent)
+  * Terms: To Be Billed / Consignee Account
+
+---
+
+### 2. Discrepancy & Red Flag Audit
+
+* **Mandatory Fields Check:** **[CLEAN]**
+  * Consignor and Consignee GSTINs, addresses, invoice number, and e-way bill number with validity (valid through 28-10-2026 for intra-city transit) are present.
+  * Transporter and driver authorization entries are acknowledged.
+
+* **Calculations & Charge Verification:** **[WARNING]**
+  * **Freight Charges:** The arithmetic sum of charges tallies correctly ($18,500 + 1,200 + 800 = INR 20,500). However, statutory Goods Transport Agency (GTA) GST compliance (whether billed at 5% RCM or 12% FCM) is not stated.
+  * **Severe Weight & Discrepancy Calculation Error:** 
+    * The weighbridge net weight is calculated as: 5,200 KG (Gross) - 3,200 KG (Tare) = 2,000 KG (Net).
+    * The invoice declared cargo gross weight is **4,850 KG**, which indicates a shortfall of **2,850 KG** (over 58% missing weight).
+    * The clerk's "Discrepancy Note" errantly compares the total laden vehicle weight (5,200 KG) to the declared invoice weight (4,850 KG) and states: *"Gross weight recorded exceeds declared invoice weight by 350 KG."* This conflates total vehicle weight with cargo payload, masking a massive physical shortage or an erroneous weighbridge tare entry.
+
+* **Risk & Liability Warnings:** **[WARNING]**
+  * **En-Route Regulatory Risk:** If intercepted by GST/RTO authorities, the drastic variance between the E-Way bill declared weight (4,850 KG) and physical net weight (2,000 KG) constitutes a major violation under Section 129 of the CGST Act, exposing the shipment to detention and penalties.
+  * **Cargo Shortage / Theft Hazard:** If the vehicle is carrying only 2,000 KG across 40 crates, crates may be partially empty, or the weighbridge entry is incorrect.
+  * **Omission of Detention Terms:** No terms are outlined for unloading detention at Whitefield Hub.
+
+---
+
+### 3. Executive Decision & Recommended Action
+
+**Verdict:** **HOLD FOR REVIEW**
+
+**Recommended Action for Dispatch / Billing Manager:**
+1. **Immediate Vehicle Hold:** Halt dispatch/unloading immediately. Do not release the vehicle or accept the delivery based on this LR.
+2. **Gross Re-Weighing:** Require KA-01-AG-4912 to undergo an immediate secondary weighbridge verification (Gross, Tare, Net) in the presence of an independent surveyor or warehouse supervisor.
+3. **Crate Audit:** Inspect seal `SL-99214-B` and conduct a physical crate count and sample check across the 40 crates to determine whether cargo is missing or if the initial tare weight/gross weight was entered in error.
+4. **Correct Bilty & E-Way Bill:** Cancel the current LR line item note. Once the true weight is established, issue an amended LR with corrected net cargo weight and explicitly note GTA GST treatment (e.g., *GST payable by Consignee under RCM*) before cargo handover."""
 
 # 3. Main Workspace
 col_upload, col_result = st.columns([1, 1], gap="medium")
 
 with col_upload:
-  st.subheader("1. Upload Document")
-  uploaded_file = st.file_uploader(
-      "Upload Lorry Receipt (LR), Bill of Lading (BL), or Freight Invoice",
-      type=["pdf", "png", "jpg", "jpeg", "txt"],
-  )
+    st.subheader("1. Upload Document")
+    uploaded_file = st.file_uploader(
+        "Upload Lorry Receipt (LR), Bill of Lading (BL), or Freight Invoice",
+        type=["pdf", "png", "jpg", "jpeg", "txt"]
+    )
+    
+    st.markdown("---")
+    st.markdown("**Quick Client Demo**")
+    demo_button = st.button("⚡ Load Sample LR (Deccan Express)", use_container_width=True)
 
-  if uploaded_file is not None:
-    if uploaded_file.type in ["image/png", "image/jpeg", "image/jpg"]:
-      st.image(
-          uploaded_file,
-          caption="Uploaded Document Preview",
-          use_container_width=True,
-      )
-    else:
-      st.info(
-          f"📄 File loaded: **{uploaded_file.name}**"
-          f" ({uploaded_file.size / 1024:.1f} KB)"
-      )
+    if uploaded_file is not None:
+        if uploaded_file.type in ["image/png", "image/jpeg", "image/jpg"]:
+            st.image(uploaded_file, caption="Uploaded Document Preview", use_container_width=True)
+        else:
+            st.info(f"📄 File loaded: **{uploaded_file.name}** ({uploaded_file.size / 1024:.1f} KB)")
 
 with col_result:
-  st.subheader("2. Audit & Compliance Analysis")
-
-  if uploaded_file is not None:
-    audit_button = st.button(
-        "🔍 Run Full Logistics Audit", type="primary", use_container_width=True
-    )
-
-    if audit_button:
-      # Reset file pointer to prevent empty 0-byte reads
-      uploaded_file.seek(0)
-      bytes_data = uploaded_file.read()
-
-      mime_type = uploaded_file.type
-      if not mime_type:
-        if uploaded_file.name.lower().endswith(".pdf"):
-          mime_type = "application/pdf"
-        elif uploaded_file.name.lower().endswith((".png", ".jpg", ".jpeg")):
-          mime_type = "image/jpeg"
-        else:
-          mime_type = "text/plain"
-
-      if (
-          mime_type == "text/plain"
-          or uploaded_file.name.lower().endswith(".txt")
-      ):
-        text_str = bytes_data.decode("utf-8", errors="ignore")
-        document_payload = (
-            f"--- ATTACHED FREIGHT DOCUMENT CONTENT ---\n{text_str}"
-        )
-      else:
-        document_payload = types.Part.from_bytes(
-            data=bytes_data, mime_type=mime_type
+    st.subheader("2. Audit & Compliance Analysis")
+    
+    # CASE A: Demo Button Clicked (Zero API quota used)
+    if demo_button:
+        st.success("✅ Sample LR Loaded: Deccan Express (DEC-BLR-2026-88412)")
+        st.markdown(SAMPLE_AUDIT_TEXT)
+        st.download_button(
+            label="📥 Download Audit Summary (.txt)",
+            data=SAMPLE_AUDIT_TEXT,
+            file_name="FreightCheck_Audit_Sample_LR.txt",
+            mime="text/plain",
+            use_container_width=True
         )
 
-      ai_prompt = """
+    # CASE B: Custom File Uploaded
+    elif uploaded_file is not None:
+        audit_button = st.button("🔍 Run Full Logistics Audit", type="primary", use_container_width=True)
+        
+        if audit_button:
+            if not YOUR_GEMINI_API_KEY:
+                st.error("Setup Incomplete: Please add `GEMINI_API_KEY` to your Streamlit Cloud Secrets dashboard.")
+                st.stop()
+
+            try:
+                client = genai.Client(api_key=YOUR_GEMINI_API_KEY)
+            except Exception as config_err:
+                st.error(f"Client initialization error: {config_err}")
+                st.stop()
+
+            uploaded_file.seek(0)
+            bytes_data = uploaded_file.read()
+            
+            mime_type = uploaded_file.type
+            if not mime_type:
+                if uploaded_file.name.lower().endswith(".pdf"):
+                    mime_type = "application/pdf"
+                elif uploaded_file.name.lower().endswith((".png", ".jpg", ".jpeg")):
+                    mime_type = "image/jpeg"
+                else:
+                    mime_type = "text/plain"
+
+            if mime_type == "text/plain" or uploaded_file.name.lower().endswith(".txt"):
+                text_str = bytes_data.decode("utf-8", errors="ignore")
+                document_payload = f"--- ATTACHED FREIGHT DOCUMENT CONTENT ---\n{text_str}"
+            else:
+                document_payload = types.Part.from_bytes(
+                    data=bytes_data,
+                    mime_type=mime_type
+                )
+
+            ai_prompt = """
 You are an expert freight and logistics compliance auditor. Conduct a rigorous, forensic audit of the attached document.
 
 Structure your response strictly using these Markdown sections:
@@ -132,45 +184,42 @@ Scan every field and mark status clearly with [CLEAN] or [WARNING]:
 Provide a clear verdict: **APPROVED**, **HOLD FOR REVIEW**, or **REJECTED**, followed by the exact operational next step for the dispatch/billing manager.
 """
 
-      audit_container = st.empty()
-      full_report = ""
+            audit_container = st.empty()
+            full_report = ""
 
-      with st.spinner("Connecting to FreightCheck Audit Engine..."):
-        try:
-          # Stream the response live to avoid read timeouts
-          response_stream = client.models.generate_content_stream(
-              model="gemini-3.8-flash",
-              contents=[document_payload, ai_prompt],
-              config=types.GenerateContentConfig(
-                  thinking_config=types.ThinkingConfig(thinking_budget=0),
-                  temperature=0.1,
-              ),
-          )
+            with st.spinner("Connecting to FreightCheck Audit Engine..."):
+                try:
+                    response_stream = client.models.generate_content_stream(
+                        model='gemini-3.8-flash',
+                        contents=[document_payload, ai_prompt],
+                        config=types.GenerateContentConfig(
+                            thinking_config=types.ThinkingConfig(thinking_budget=0),
+                            temperature=0.1
+                        )
+                    )
+                    
+                    for chunk in response_stream:
+                        if chunk.text:
+                            full_report += chunk.text
+                            audit_container.markdown(full_report)
+                            
+                    st.success("Audit Completed Successfully")
+                    st.download_button(
+                        label="📥 Download Audit Summary (.txt)",
+                        data=full_report,
+                        file_name=f"FreightCheck_Audit_{uploaded_file.name}.txt",
+                        mime="text/plain",
+                        use_container_width=True
+                    )
 
-          for chunk in response_stream:
-            if chunk.text:
-              full_report += chunk.text
-              audit_container.markdown(full_report)
-
-          st.success("Audit Completed Successfully")
-
-          st.download_button(
-              label="📥 Download Audit Summary (.txt)",
-              data=full_report,
-              file_name=f"FreightCheck_Audit_{uploaded_file.name}.txt",
-              mime="text/plain",
-              use_container_width=True,
-          )
-
-        except errors.APIError as api_err:
-          if "503" in str(api_err):
-            st.warning(
-                "⚡ Google API capacity surge detected. Please wait 10 seconds"
-                " and click retry."
-            )
-          else:
-            st.error(f"Gemini API Error: {api_err}")
-        except Exception as err:
-          st.error(f"Processing Error: {err}")
-  else:
-    st.write("Upload a document on the left to begin the automated audit.")
+                except errors.APIError as api_err:
+                    if "429" in str(api_err):
+                        st.error("Daily API free-tier quota reached. Use the '⚡ Load Sample LR' button on the left to view the interactive demo!")
+                    elif "503" in str(api_err):
+                        st.warning("⚡ Google API capacity surge detected. Please wait a moment and retry.")
+                    else:
+                        st.error(f"Gemini API Error: {api_err}")
+                except Exception as err:
+                    st.error(f"Processing Error: {err}")
+    else:
+        st.write("Upload a document on the left or click **'⚡ Load Sample LR'** to run an automated audit.")
