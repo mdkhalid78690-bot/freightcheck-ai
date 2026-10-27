@@ -1,7 +1,7 @@
 import streamlit as st
-from google import genai
-from google.genai import types
-from google.genai import errors
+from groq import Groq
+import pypdf
+import io
 
 # 1. Page Configuration & Professional Styling
 st.set_page_config(
@@ -22,13 +22,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📦 FreightCheck AI")
-st.caption("Enterprise Logistics Document Auditor & Discrepancy Detection Engine")
+st.caption("Enterprise Logistics Document Auditor & Discrepancy Detection Engine (Powered by High-Speed Llama 3.3 70B)")
 
 # 2. Secure API Key Retrieval
 try:
-    YOUR_GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"].strip()
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"].strip()
 except Exception:
-    YOUR_GEMINI_API_KEY = None
+    GROQ_API_KEY = None
 
 SAMPLE_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 
@@ -94,7 +94,7 @@ with col_upload:
     st.subheader("1. Upload Document")
     uploaded_file = st.file_uploader(
         "Upload Lorry Receipt (LR), Bill of Lading (BL), or Freight Invoice",
-        type=["pdf", "png", "jpg", "jpeg", "txt"]
+        type=["pdf", "txt"]
     )
     
     st.markdown("---")
@@ -102,15 +102,12 @@ with col_upload:
     demo_button = st.button("⚡ Load Sample LR (Deccan Express)", use_container_width=True)
 
     if uploaded_file is not None:
-        if uploaded_file.type in ["image/png", "image/jpeg", "image/jpg"]:
-            st.image(uploaded_file, caption="Uploaded Document Preview", use_container_width=True)
-        else:
-            st.info(f"📄 File loaded: **{uploaded_file.name}** ({uploaded_file.size / 1024:.1f} KB)")
+        st.info(f"📄 File loaded: **{uploaded_file.name}** ({uploaded_file.size / 1024:.1f} KB)")
 
 with col_result:
     st.subheader("2. Audit & Compliance Analysis")
     
-    # CASE A: Demo Button Clicked (Zero API quota used)
+    # CASE A: Demo Button Clicked (Zero API calls)
     if demo_button:
         st.success("✅ Sample LR Loaded: Deccan Express (DEC-BLR-2026-88412)")
         st.markdown(SAMPLE_AUDIT_TEXT)
@@ -127,39 +124,34 @@ with col_result:
         audit_button = st.button("🔍 Run Full Logistics Audit", type="primary", use_container_width=True)
         
         if audit_button:
-            if not YOUR_GEMINI_API_KEY:
-                st.error("Setup Incomplete: Please add `GEMINI_API_KEY` to your Streamlit Cloud Secrets dashboard.")
+            if not GROQ_API_KEY:
+                st.error("Setup Incomplete: Please add `GROQ_API_KEY` to your Streamlit Cloud Secrets dashboard.")
                 st.stop()
 
+            # Extract text safely from TXT or PDF
             try:
-                client = genai.Client(api_key=YOUR_GEMINI_API_KEY)
-            except Exception as config_err:
-                st.error(f"Client initialization error: {config_err}")
+                uploaded_file.seek(0)
+                extracted_text = ""
+                if uploaded_file.name.lower().endswith(".pdf"):
+                    pdf_reader = pypdf.PdfReader(io.BytesIO(uploaded_file.read()))
+                    for page in pdf_reader.pages:
+                        extracted_text += page.extract_text() or ""
+                else:
+                    extracted_text = uploaded_file.read().decode("utf-8", errors="ignore")
+            except Exception as e:
+                st.error(f"Error reading document: {e}")
                 st.stop()
 
-            uploaded_file.seek(0)
-            bytes_data = uploaded_file.read()
-            
-            mime_type = uploaded_file.type
-            if not mime_type:
-                if uploaded_file.name.lower().endswith(".pdf"):
-                    mime_type = "application/pdf"
-                elif uploaded_file.name.lower().endswith((".png", ".jpg", ".jpeg")):
-                    mime_type = "image/jpeg"
-                else:
-                    mime_type = "text/plain"
+            if not extracted_text.strip():
+                st.error("The uploaded document contains no readable text. Please try another file.")
+                st.stop()
 
-            if mime_type == "text/plain" or uploaded_file.name.lower().endswith(".txt"):
-                text_str = bytes_data.decode("utf-8", errors="ignore")
-                document_payload = f"--- ATTACHED FREIGHT DOCUMENT CONTENT ---\n{text_str}"
-            else:
-                document_payload = types.Part.from_bytes(
-                    data=bytes_data,
-                    mime_type=mime_type
-                )
+            ai_prompt = f"""You are an expert freight and logistics compliance auditor. Conduct a rigorous, forensic audit of the attached freight document text.
 
-            ai_prompt = """
-You are an expert freight and logistics compliance auditor. Conduct a rigorous, forensic audit of the attached document.
+DOCUMENT CONTENT:
+\"\"\"
+{extracted_text}
+\"\"\"
 
 Structure your response strictly using these Markdown sections:
 
@@ -187,22 +179,21 @@ Provide a clear verdict: **APPROVED**, **HOLD FOR REVIEW**, or **REJECTED**, fol
             audit_container = st.empty()
             full_report = ""
 
-            with st.spinner("Connecting to FreightCheck Audit Engine..."):
+            with st.spinner("Connecting to Groq High-Speed Engine..."):
                 try:
-                    response_stream = client.models.generate_content_stream(
-                        model='gemini-3.8-flash',
-                        contents=[document_payload, ai_prompt],
-                        config=types.GenerateContentConfig(
-                            thinking_config=types.ThinkingConfig(thinking_budget=0),
-                            temperature=0.1
-                        )
+                    groq_client = Groq(api_key=GROQ_API_KEY)
+                    stream = groq_client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[{"role": "user", "content": ai_prompt}],
+                        temperature=0.1,
+                        stream=True,
                     )
-                    
-                    for chunk in response_stream:
-                        if chunk.text:
-                            full_report += chunk.text
-                            audit_container.markdown(full_report)
-                            
+
+                    for chunk in stream:
+                        content = chunk.choices[0].delta.content or ""
+                        full_report += content
+                        audit_container.markdown(full_report)
+
                     st.success("Audit Completed Successfully")
                     st.download_button(
                         label="📥 Download Audit Summary (.txt)",
@@ -212,14 +203,8 @@ Provide a clear verdict: **APPROVED**, **HOLD FOR REVIEW**, or **REJECTED**, fol
                         use_container_width=True
                     )
 
-                except errors.APIError as api_err:
-                    if "429" in str(api_err):
-                        st.error("Daily API free-tier quota reached. Use the '⚡ Load Sample LR' button on the left to view the interactive demo!")
-                    elif "503" in str(api_err):
-                        st.warning("⚡ Google API capacity surge detected. Please wait a moment and retry.")
-                    else:
-                        st.error(f"Gemini API Error: {api_err}")
                 except Exception as err:
-                    st.error(f"Processing Error: {err}")
+                    st.error(f"Audit Engine Error: {err}")
     else:
         st.write("Upload a document on the left or click **'⚡ Load Sample LR'** to run an automated audit.")
+        
