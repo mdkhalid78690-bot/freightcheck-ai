@@ -22,7 +22,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📦 FreightCheck AI")
-st.caption("Enterprise Logistics Document Auditor & Discrepancy Detection Engine (Powered by High-Speed Llama 3.3 70B)")
+st.caption("Enterprise Logistics Document Auditor & Discrepancy Detection Engine (Powered by Groq High-Speed Inference)")
 
 # 2. Secure API Key Retrieval
 try:
@@ -183,7 +183,7 @@ Provide a clear verdict: **APPROVED**, **HOLD FOR REVIEW**, or **REJECTED**, fol
                 try:
                     groq_client = Groq(api_key=GROQ_API_KEY)
                     stream = groq_client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
+                        model="openai/gpt-oss-120b",
                         messages=[{"role": "user", "content": ai_prompt}],
                         temperature=0.1,
                         stream=True,
