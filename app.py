@@ -1,17 +1,18 @@
-import streamlit as st
 from google import genai
-from google.genai import types
 from google.genai import errors
+from google.genai import types
+import streamlit as st
 
 # 1. Page Configuration & Professional Styling
 st.set_page_config(
-    page_title="FreightCheck AI | Logistics Document Auditor", 
-    page_icon="📦", 
-    layout="wide"
+    page_title="FreightCheck AI | Logistics Document Auditor",
+    page_icon="📦",
+    layout="wide",
 )
 
 # Custom header styling
-st.markdown("""
+st.markdown(
+    """
     <style>
     .metric-card {
         background-color: #f8f9fa;
@@ -20,87 +21,111 @@ st.markdown("""
         border-left: 4px solid #0066cc;
     }
     </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 st.title("📦 FreightCheck AI")
-st.caption("Enterprise Logistics Document Auditor & Discrepancy Detection Engine")
+st.caption(
+    "Enterprise Logistics Document Auditor & Discrepancy Detection Engine"
+)
 
 # 2. Secure API Key Retrieval
 try:
-    YOUR_GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"].strip()
+  YOUR_GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"].strip()
 except Exception:
-    YOUR_GEMINI_API_KEY = None
+  YOUR_GEMINI_API_KEY = None
 
 if not YOUR_GEMINI_API_KEY:
-    st.error("Setup Incomplete: Please add `GEMINI_API_KEY` to your Streamlit Cloud Secrets dashboard.")
-    st.stop()
+  st.error(
+      "Setup Incomplete: Please add `GEMINI_API_KEY` to your Streamlit Cloud"
+      " Secrets dashboard."
+  )
+  st.stop()
 
 # Initialize Gemini Client
 try:
-    client = genai.Client(api_key=YOUR_GEMINI_API_KEY)
+  client = genai.Client(api_key=YOUR_GEMINI_API_KEY)
 except Exception as config_err:
-    st.error(f"Client initialization error: {config_err}")
-    st.stop()
+  st.error(f"Client initialization error: {config_err}")
+  st.stop()
 
 # 3. Main Workspace
 col_upload, col_result = st.columns([1, 1], gap="medium")
 
 with col_upload:
-    st.subheader("1. Upload Document")
-    uploaded_file = st.file_uploader(
-        "Upload Lorry Receipt (LR), Bill of Lading (BL), or Freight Invoice",
-        type=["pdf", "png", "jpg", "jpeg", "txt"]
-    )
-    
-    if uploaded_file is not None:
-        # Show preview if image
-        if uploaded_file.type in ["image/png", "image/jpeg", "image/jpg"]:
-            st.image(uploaded_file, caption="Uploaded Document Preview", use_container_width=True)
-        else:
-            st.info(f"📄 File loaded: **{uploaded_file.name}** ({uploaded_file.size / 1024:.1f} KB)")
+  st.subheader("1. Upload Document")
+  uploaded_file = st.file_uploader(
+      "Upload Lorry Receipt (LR), Bill of Lading (BL), or Freight Invoice",
+      type=["pdf", "png", "jpg", "jpeg", "txt"],
+  )
+
+  if uploaded_file is not None:
+    # Show preview if image
+    if uploaded_file.type in ["image/png", "image/jpeg", "image/jpg"]:
+      st.image(
+          uploaded_file,
+          caption="Uploaded Document Preview",
+          use_container_width=True,
+      )
+    else:
+      st.info(
+          f"📄 File loaded: **{uploaded_file.name}**"
+          f" ({uploaded_file.size / 1024:.1f} KB)"
+      )
 
 with col_result:
-    st.subheader("2. Audit & Compliance Analysis")
-    
-    if uploaded_file is not None:
-        audit_button = st.button("🔍 Run Full Logistics Audit", type="primary", use_container_width=True)
-        
-        if audit_button:
-            with st.spinner("Extracting parameters and verifying compliance..."):
-                try:
-                    bytes_data = uploaded_file.read()
-                    
-                    # Determine MIME type safely
-                    mime_type = uploaded_file.type
-                    if not mime_type:
-                        if uploaded_file.name.lower().endswith(".pdf"):
-                            mime_type = "application/pdf"
-                        elif uploaded_file.name.lower().endswith((".png", ".jpg", ".jpeg")):
-                            mime_type = "image/jpeg"
-                        else:
-                            mime_type = "text/plain"
+  st.subheader("2. Audit & Compliance Analysis")
 
-                    # Package document as a native multimodal part
-                    document_part = types.Part.from_bytes(
-                        data=bytes_data,
-                        mime_type=mime_type
-                    )
+  if uploaded_file is not None:
+    audit_button = st.button(
+        "🔍 Run Full Logistics Audit", type="primary", use_container_width=True
+    )
 
-                    ai_prompt = """
+    if audit_button:
+      with st.spinner("Extracting parameters and verifying compliance..."):
+        try:
+          bytes_data = uploaded_file.read()
+
+          # Determine MIME type safely
+          mime_type = uploaded_file.type
+          if not mime_type:
+            if uploaded_file.name.lower().endswith(".pdf"):
+              mime_type = "application/pdf"
+            elif uploaded_file.name.lower().endswith((".png", ".jpg", ".jpeg")):
+              mime_type = "image/jpeg"
+            else:
+              mime_type = "text/plain"
+
+          # Fast routing: direct string for TXT, multimodal Part for PDF/Images
+          if (
+              mime_type == "text/plain"
+              or uploaded_file.name.lower().endswith(".txt")
+          ):
+            text_str = bytes_data.decode("utf-8", errors="ignore")
+            document_payload = (
+                f"--- ATTACHED FREIGHT DOCUMENT CONTENT ---\n{text_str}"
+            )
+          else:
+            document_payload = types.Part.from_bytes(
+                data=bytes_data, mime_type=mime_type
+            )
+
+          ai_prompt = """
 You are an expert freight and logistics compliance auditor. Conduct a rigorous, forensic audit of the attached document.
 
 Structure your response strictly using these Markdown sections:
 
 ### 1. Document Classification & Key Extraction
-* **Document Type:** (e.g., Lorry Receipt / Bilty, Bill of Lading, Freight Tax Invoice, Delivery Challan)
-* **Document Number & Date:** 
-* **Carrier / Transporter Name:** 
-* **Consignor (Sender):** 
-* **Consignee (Receiver):** 
-* **Origin & Destination:** 
-* **Vehicle / Container / Seal Number:** 
-* **Weight & Volume (Gross / Net / Chargeable):** 
-* **Total Freight Charges & Currency:** (Explicitly list freight rate, detention/demurrage terms, fuel surcharge, GST/taxes if present)
+- **Document Type:** (e.g., Lorry Receipt / Bilty, Bill of Lading, Freight Tax Invoice, Delivery Challan)
+- **Document Number & Date:** 
+- **Carrier / Transporter Name:** 
+- **Consignor (Sender):** 
+- **Consignee (Receiver):** 
+- **Origin & Destination:** 
+- **Vehicle / Container / Seal Number:** 
+- **Weight & Volume (Gross / Net / Chargeable):** 
+- **Total Freight Charges & Currency:** (Explicitly list freight rate, detention/demurrage terms, fuel surcharge, GST/taxes if present)
 
 ### 2. Discrepancy & Red Flag Audit
 Scan every field and mark status clearly with [CLEAN] or [WARNING]:
@@ -112,27 +137,31 @@ Scan every field and mark status clearly with [CLEAN] or [WARNING]:
 Provide a clear verdict: **APPROVED**, **HOLD FOR REVIEW**, or **REJECTED**, followed by the exact operational next step for the dispatch/billing manager.
 """
 
-                    response = client.models.generate_content(
-                        model='gemini-3.8-flash',
-                        contents=[document_part, ai_prompt]
-                    )
+          # Run Gemini 3.8 Flash with thinking_budget=0 for instant sub-5-second output
+          response = client.models.generate_content(
+              model="gemini-3.8-flash",
+              contents=[document_payload, ai_prompt],
+              config=types.GenerateContentConfig(
+                  thinking_config=types.ThinkingConfig(thinking_budget=0),
+                  temperature=0.2,
+              ),
+          )
 
-                    st.success("Audit Completed Successfully")
-                    st.markdown(response.text)
+          st.success("Audit Completed Successfully")
+          st.markdown(response.text)
 
-                    # Export capability for prospects
-                    st.download_button(
-                        label="📥 Download Audit Summary (.txt)",
-                        data=response.text,
-                        file_name=f"FreightCheck_Audit_{uploaded_file.name}.txt",
-                        mime="text/plain",
-                        use_container_width=True
-                    )
+          # Export capability for prospects
+          st.download_button(
+              label="📥 Download Audit Summary (.txt)",
+              data=response.text,
+              file_name=f"FreightCheck_Audit_{uploaded_file.name}.txt",
+              mime="text/plain",
+              use_container_width=True,
+          )
 
-                except errors.APIError as api_err:
-                    st.error(f"Gemini API Error: {api_err}")
-                except Exception as err:
-                    st.error(f"Processing Error: {err}")
-    else:
-        st.write("Upload a document on the left to begin the automated audit.")
-        
+        except errors.APIError as api_err:
+          st.error(f"Gemini API Error: {api_err}")
+        except Exception as err:
+          st.error(f"Processing Error: {err}")
+  else:
+    st.write("Upload a document on the left to begin the automated audit.")
