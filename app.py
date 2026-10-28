@@ -254,5 +254,5 @@ Provide a clear verdict: **APPROVED**, **HOLD FOR REVIEW**, or **REJECTED**, fol
                 except Exception as err:
                     st.error(f"Audit Engine Error: {err}")
     else:
-        st.write("Upload a document on the left or click **'⚡ Load Sample LR'** to run an automated audit.")
+        st.info("Upload a document on the left or click a sample button below to run an instant audit.")
         
