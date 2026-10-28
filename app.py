@@ -87,6 +87,40 @@ SAMPLE_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 3. **Crate Audit:** Inspect seal `SL-99214-B` and conduct a physical crate count and sample check across the 40 crates to determine whether cargo is missing or if the initial tare weight/gross weight was entered in error.
 4. **Correct Bilty & E-Way Bill:** Cancel the current LR line item note. Once the true weight is established, issue an amended LR with corrected net cargo weight and explicitly note GTA GST treatment (e.g., *GST payable by Consignee under RCM*) before cargo handover."""
 
+# -------------------------------------------------------------
+# PASTE RIGHT HERE (Between line 89 and line 90)
+# -------------------------------------------------------------
+SAMPLE_3_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
+| Item | Extracted Value |
+|---|---|
+| **Document Type** | Tax Invoice & Consignment Note (Bilty) |
+| **Document Number & Date** | Invoice/LR No: SRL-MUM-2026-90412 | Date: 26-10-2026 |
+| **Carrier / Transporter Name** | Surya Roadways & Logistics Services |
+| **Consignor (Sender)** | Godrej Industrial Chemicals Ltd (Maharashtra - GSTIN 27AAACG1122K1Z8) |
+| **Consignee (Receiver)** | Southern Agro Fertilizers Pvt Ltd (Tamil Nadu - GSTIN 33AABCS4455L1Z1) |
+| **Vehicle & Seal** | MH-43-BP-7819 | Seal: SR-SEAL-88219 |
+| **Weight Particulars** | Declared: 7,500 kg (150 Bags) | Weighbridge Net: 6,800 kg |
+| **Billed Total** | ₹54,285.00 (Base: ₹42,000 + Fuel: ₹4,200 + Loading: ₹2,000 + Detention: ₹1,500) |
+
+---
+
+### 2. Discrepancy & Red Flag Audit
+| Check | Observation | Status |
+|---|---|---|
+| **Weight Reconciliation** | Declared 7,500 kg vs. Weighbridge 6,800 kg (700 kg / 14 bags missing). | **[WARNING]** |
+| **E-Way Bill Validity** | Expired on 23-10-2026; dispatch date is 26-10-2026. High risk of Sec 129 seizure. | **[WARNING]** |
+| **Arithmetic Integrity** | Line items total ₹49,700, but stated subtotal is ₹51,700 (₹2,000 unexplained overcharge). | **[WARNING]** |
+| **GST Classification** | Interstate trip (MH -> TN) charged as CGST/SGST instead of IGST 5%. | **[WARNING]** |
+| **Consignee Receipt** | Consignee signature field is blank / unsigned upon delivery. | **[WARNING]** |
+
+---
+
+### 3. Executive Decision & Action
+**Verdict:** **HOLD FOR REVIEW**
+- Reconcile physical shortage of 14 bags at Taloja dispatch.
+- Issue corrected invoice removing ₹2,000 math gap and charging 5% IGST.
+- Re-generate valid E-Way Bill before road transit clearance.
+"""
 # 3. Main Workspace
 col_upload, col_result = st.columns([1, 1], gap="medium")
 
@@ -99,7 +133,11 @@ with col_upload:
     
     st.markdown("---")
     st.markdown("**Quick Client Demo**")
-    demo_button = st.button("⚡ Load Sample LR (Deccan Express)", use_container_width=True)
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        demo_btn_1 = st.button("⚡ Load Sample 1 (LR)", use_container_width=True)
+    with col_btn2:
+        demo_btn_2 = st.button("⚡ Load Sample 2 (Invoice)", use_container_width=True)
 
     if uploaded_file is not None:
         st.info(f"📄 File loaded: **{uploaded_file.name}** ({uploaded_file.size / 1024:.1f} KB)")
@@ -107,14 +145,24 @@ with col_upload:
 with col_result:
     st.subheader("2. Audit & Compliance Analysis")
     
-    # CASE A: Demo Button Clicked (Zero API calls)
-    if demo_button:
-        st.success("✅ Sample LR Loaded: Deccan Express (DEC-BLR-2026-88412)")
+    # CASE A: Demo Buttons Clicked (Zero API calls)
+    if demo_btn_1:
+        st.success("✅ Sample 1 Loaded: Deccan Express Consignment Note")
         st.markdown(SAMPLE_AUDIT_TEXT)
         st.download_button(
             label="📥 Download Audit Summary (.txt)",
             data=SAMPLE_AUDIT_TEXT,
             file_name="FreightCheck_Audit_Sample_LR.txt",
+            mime="text/plain",
+            use_container_width=True
+        )
+    elif demo_btn_2:
+        st.success("✅ Sample 2 Loaded: Surya Roadways Freight Invoice")
+        st.markdown(SAMPLE_3_AUDIT_TEXT)
+        st.download_button(
+            label="📥 Download Audit Summary (.txt)",
+            data=SAMPLE_3_AUDIT_TEXT,
+            file_name="FreightCheck_Audit_Sample_Invoice.txt",
             mime="text/plain",
             use_container_width=True
         )
