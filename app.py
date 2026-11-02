@@ -32,20 +32,20 @@ except Exception:
 
 SAMPLE_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 
-* **Document Type:** Lorry Receipt / Consignment Note (Bilty)
-* **Document Number & Date:** DEC-BLR-2026-88412 | 27-10-2026
-* **Carrier / Transporter Name:** Deccan Express Logistics Pvt Ltd
-* **Consignor (Sender):** Apex Industrial Tools Pvt Ltd (GSTIN: 29AABCA1234F1Z5) | Invoice: INV-45920 (Value: INR 8,45,000)
-* **Consignee (Receiver):** Metro Hyper Retail Logistics Hub (GSTIN: 29XYZPA9876Q1Z2) | E-Way Bill: 531098234710 (Expiry: 28-10-2026)
-* **Origin & Destination:** Peenya Industrial Area, Bengaluru, Karnataka ➔ Whitefield Warehouse Cluster, Bengaluru, Karnataka
-* **Vehicle / Container / Seal Number:** Vehicle: KA-01-AG-4912 | Seal Number: SL-99214-B (Intact) | Driver: Ramesh Kumar (+91 98450 12345)
-* **Weight & Volume (Gross / Net / Chargeable):** 
+- **Document Type:** Lorry Receipt / Consignment Note (Bilty)
+- **Document Number & Date:** DEC-BLR-2026-88412 | 27-10-2026
+- **Carrier / Transporter Name:** Deccan Express Logistics Pvt Ltd
+- **Consignor (Sender):** Apex Industrial Tools Pvt Ltd (GSTIN: 29AABCA1234F1Z5) | Invoice: INV-45920 (Value: INR 8,45,000)
+- **Consignee (Receiver):** Metro Hyper Retail Logistics Hub (GSTIN: 29XYZPA9876Q1Z2) | E-Way Bill: 531098234710 (Expiry: 28-10-2026)
+- **Origin & Destination:** Peenya Industrial Area, Bengaluru, Karnataka ➔ Whitefield Warehouse Cluster, Bengaluru, Karnataka
+- **Vehicle / Container / Seal Number:** Vehicle: KA-01-AG-4912 | Seal Number: SL-99214-B (Intact) | Driver: Ramesh Kumar (+91 98450 12345)
+- **Weight & Volume (Gross / Net / Chargeable):** 
   * Declared Gross Cargo Weight (Invoice): 4,850 KG
   * Weighbridge Gross Weight (Laden Truck): 5,200 KG
   * Tare Weight (Truck): 3,200 KG
   * Actual Net Cargo Weight: 2,000 KG
   * Quantity / Package: 40 Wooden Crates
-* **Total Freight Charges & Currency:** 
+- **Total Freight Charges & Currency:** 
   * Total: INR 20,500
   * Base Freight: INR 18,500
   * Loading / Hamali: INR 1,200
@@ -59,18 +59,18 @@ SAMPLE_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 
 ### 2. Discrepancy & Red Flag Audit
 
-* **Mandatory Fields Check:** **[CLEAN]**
+- **Mandatory Fields Check:** **[CLEAN]**
   * Consignor and Consignee GSTINs, addresses, invoice number, and e-way bill number with validity (valid through 28-10-2026 for intra-city transit) are present.
   * Transporter and driver authorization entries are acknowledged.
 
-* **Calculations & Charge Verification:** **[WARNING]**
-  * **Freight Charges:** The arithmetic sum of charges tallies correctly ($18,500 + 1,200 + 800 = INR 20,500). However, statutory Goods Transport Agency (GTA) GST compliance (whether billed at 5% RCM or 12% FCM) is not stated.
+- **Calculations & Charge Verification:** **[WARNING]**
+  * **Freight Charges:** The arithmetic sum of charges tallies correctly (18,500 + 1,200 + 800 = INR 20,500). However, statutory Goods Transport Agency (GTA) GST compliance (whether billed at 5% RCM or 12% FCM) is not stated.
   * **Severe Weight & Discrepancy Calculation Error:** 
     * The weighbridge net weight is calculated as: 5,200 KG (Gross) - 3,200 KG (Tare) = 2,000 KG (Net).
     * The invoice declared cargo gross weight is **4,850 KG**, which indicates a shortfall of **2,850 KG** (over 58% missing weight).
     * The clerk's "Discrepancy Note" errantly compares the total laden vehicle weight (5,200 KG) to the declared invoice weight (4,850 KG) and states: *"Gross weight recorded exceeds declared invoice weight by 350 KG."* This conflates total vehicle weight with cargo payload, masking a massive physical shortage or an erroneous weighbridge tare entry.
 
-* **Risk & Liability Warnings:** **[WARNING]**
+- **Risk & Liability Warnings:** **[WARNING]**
   * **En-Route Regulatory Risk:** If intercepted by GST/RTO authorities, the drastic variance between the E-Way bill declared weight (4,850 KG) and physical net weight (2,000 KG) constitutes a major violation under Section 129 of the CGST Act, exposing the shipment to detention and penalties.
   * **Cargo Shortage / Theft Hazard:** If the vehicle is carrying only 2,000 KG across 40 crates, crates may be partially empty, or the weighbridge entry is incorrect.
   * **Omission of Detention Terms:** No terms are outlined for unloading detention at Whitefield Hub.
@@ -87,9 +87,6 @@ SAMPLE_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 3. **Crate Audit:** Inspect seal `SL-99214-B` and conduct a physical crate count and sample check across the 40 crates to determine whether cargo is missing or if the initial tare weight/gross weight was entered in error.
 4. **Correct Bilty & E-Way Bill:** Cancel the current LR line item note. Once the true weight is established, issue an amended LR with corrected net cargo weight and explicitly note GTA GST treatment (e.g., *GST payable by Consignee under RCM*) before cargo handover."""
 
-# -------------------------------------------------------------
-# PASTE RIGHT HERE (Between line 89 and line 90)
-# -------------------------------------------------------------
 SAMPLE_3_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 | Item | Extracted Value |
 |---|---|
@@ -121,6 +118,7 @@ SAMPLE_3_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 - Issue corrected invoice removing ₹2,000 math gap and charging 5% IGST.
 - Re-generate valid E-Way Bill before road transit clearance.
 """
+
 # 3. Main Workspace
 col_upload, col_result = st.columns([1, 1], gap="medium")
 
@@ -255,4 +253,3 @@ Provide a clear verdict: **APPROVED**, **HOLD FOR REVIEW**, or **REJECTED**, fol
                     st.error(f"Audit Engine Error: {err}")
     else:
         st.info("Upload a document on the left or click a sample button below to run an instant audit.")
-        
