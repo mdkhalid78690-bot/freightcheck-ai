@@ -25,20 +25,45 @@ st.markdown("""
 st.title("📦 FreightCheck AI")
 st.caption("Enterprise Logistics Document Auditor & Discrepancy Detection Engine (Powered by Groq High-Speed Inference)")
 
-# 2. PDF Generator Helper
+# 2. PDF Generator Helper (Safe cursor positioning & ASCII mapping)
 def create_pdf_report(report_text: str) -> bytes:
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "FreightCheck AI - Forensic Audit Report", new_x="LMARGIN", new_y="NEXT", align="C")
-    pdf.ln(4)
+    
+    # Title Header
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(w=pdf.epw, h=10, text="FreightCheck AI - Forensic Audit Report", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(3)
+    
     pdf.set_font("Helvetica", size=9)
     
-    clean_text = report_text.encode("latin-1", "replace").decode("latin-1")
-    for line in clean_text.split("\n"):
-        pdf.multi_cell(0, 5, line)
+    # Replace symbols not supported by standard PDF Helvetica
+    text_clean = (
+        report_text.replace("₹", "INR ")
+        .replace("➔", "->")
+        .replace("•", "-")
+        .replace("✅", "[OK]")
+        .replace("📦", "")
+        .replace("⚡", "")
+        .replace("🔍", "")
+        .replace("📄", "")
+        .replace("📥", "")
+    )
+    clean_encoded = text_clean.encode("latin-1", "replace").decode("latin-1")
     
+    for line in clean_encoded.split("\n"):
+        line_str = line.strip()
+        if not line_str:
+            pdf.ln(3)
+            continue
+        # Skip markdown table divider lines like |---|---|
+        if set(line_str).issubset({"-", "|", " "}):
+            continue
+        # Ensure cursor resets to left margin with full usable width
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(w=pdf.epw, h=5, text=line_str, new_x="LMARGIN", new_y="NEXT")
+        
     return bytes(pdf.output())
 
 # 3. Secure API Key Retrieval
@@ -49,92 +74,83 @@ except Exception:
 
 SAMPLE_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 
-- **Document Type:** Lorry Receipt / Consignment Note (Bilty)
-- **Document Number & Date:** DEC-BLR-2026-88412 | 27-10-2026
-- **Carrier / Transporter Name:** Deccan Express Logistics Pvt Ltd
-- **Consignor (Sender):** Apex Industrial Tools Pvt Ltd (GSTIN: 29AABCA1234F1Z5) | Invoice: INV-45920 (Value: INR 8,45,000)
-- **Consignee (Receiver):** Metro Hyper Retail Logistics Hub (GSTIN: 29XYZPA9876Q1Z2) | E-Way Bill: 531098234710 (Expiry: 28-10-2026)
-- **Origin & Destination:** Peenya Industrial Area, Bengaluru, Karnataka -> Whitefield Warehouse Cluster, Bengaluru, Karnataka
-- **Vehicle / Container / Seal Number:** Vehicle: KA-01-AG-4912 | Seal Number: SL-99214-B (Intact) | Driver: Ramesh Kumar (+91 98450 12345)
-- **Weight & Volume (Gross / Net / Chargeable):** 
+- Document Type: Lorry Receipt / Consignment Note (Bilty)
+- Document Number & Date: DEC-BLR-2026-88412 | 27-10-2026
+- Carrier / Transporter Name: Deccan Express Logistics Pvt Ltd
+- Consignor (Sender): Apex Industrial Tools Pvt Ltd (GSTIN: 29AABCA1234F1Z5) | Invoice: INV-45920 (Value: INR 8,45,000)
+- Consignee (Receiver): Metro Hyper Retail Logistics Hub (GSTIN: 29XYZPA9876Q1Z2) | E-Way Bill: 531098234710 (Expiry: 28-10-2026)
+- Origin & Destination: Peenya Industrial Area, Bengaluru, Karnataka -> Whitefield Warehouse Cluster, Bengaluru, Karnataka
+- Vehicle / Container / Seal Number: Vehicle: KA-01-AG-4912 | Seal Number: SL-99214-B (Intact) | Driver: Ramesh Kumar (+91 98450 12345)
+- Weight & Volume (Gross / Net / Chargeable):
   * Declared Gross Cargo Weight (Invoice): 4,850 KG
   * Weighbridge Gross Weight (Laden Truck): 5,200 KG
   * Tare Weight (Truck): 3,200 KG
   * Actual Net Cargo Weight: 2,000 KG
   * Quantity / Package: 40 Wooden Crates
-- **Total Freight Charges & Currency:** 
+- Total Freight Charges & Currency:
   * Total: INR 20,500
   * Base Freight: INR 18,500
   * Loading / Hamali: INR 1,200
   * Toll / Surcharge: INR 800
-  * Detention / Demurrage: Not specified
-  * Fuel Surcharge: Unitemized / absorbed in freight
-  * GST / Taxes: Not explicitly itemized (RCM / Forward Charge status absent)
   * Terms: To Be Billed / Consignee Account
 
 ---
 
 ### 2. Discrepancy & Red Flag Audit
 
-- **Mandatory Fields Check:** [CLEAN]
-  * Consignor and Consignee GSTINs, addresses, invoice number, and e-way bill number with validity (valid through 28-10-2026 for intra-city transit) are present.
-  * Transporter and driver authorization entries are acknowledged.
+- Mandatory Fields Check: [CLEAN]
+  * Consignor and Consignee GSTINs, addresses, invoice number, and e-way bill number present.
 
-- **Calculations & Charge Verification:** [WARNING]
-  * Freight Charges: The arithmetic sum of charges tallies correctly (18,500 + 1,200 + 800 = INR 20,500). However, statutory Goods Transport Agency (GTA) GST compliance (whether billed at 5% RCM or 12% FCM) is not stated.
-  * Severe Weight & Discrepancy Calculation Error: 
-    * The weighbridge net weight is calculated as: 5,200 KG (Gross) - 3,200 KG (Tare) = 2,000 KG (Net).
-    * The invoice declared cargo gross weight is 4,850 KG, which indicates a shortfall of 2,850 KG (over 58% missing weight).
-    * The clerk's Discrepancy Note errantly compares total laden vehicle weight (5,200 KG) to declared invoice weight (4,850 KG) and states: Gross weight recorded exceeds declared invoice weight by 350 KG. This conflates vehicle weight with cargo payload, masking a massive shortage or erroneous tare entry.
+- Calculations & Charge Verification: [WARNING]
+  * Freight Charges: Line items tally correctly (18,500 + 1,200 + 800 = INR 20,500). Goods Transport Agency (GTA) GST status omitted.
+  * Severe Weight Calculation Error: Weighbridge net is 2,000 KG vs Declared 4,850 KG (shortfall of 2,850 KG / 58% missing weight).
+  * Discrepancy note errantly conflates total vehicle weight with cargo payload.
 
-- **Risk & Liability Warnings:** [WARNING]
-  * En-Route Regulatory Risk: Drastic variance between E-Way bill declared weight (4,850 KG) and physical net weight (2,000 KG) violates Section 129 of CGST Act, exposing the shipment to detention and penalty.
-  * Cargo Shortage / Theft Hazard: Potential crate pilferage or weighbridge entry fault.
-  * Omission of Detention Terms: No terms outlined for unloading detention at Whitefield Hub.
+- Risk & Liability Warnings: [WARNING]
+  * En-Route Regulatory Risk: Variance between E-Way bill declared weight and physical net weight violates Section 129 of CGST Act.
+  * Cargo Shortage Hazard: Potential missing crates or faulty weighbridge tare record.
 
 ---
 
 ### 3. Executive Decision & Recommended Action
 
-**Verdict:** **HOLD FOR REVIEW**
+Verdict: HOLD FOR REVIEW
 
-**Recommended Action for Dispatch / Billing Manager:**
-1. Immediate Vehicle Hold: Halt dispatch/unloading immediately. Do not release vehicle or accept delivery based on this LR.
-2. Gross Re-Weighing: Require KA-01-AG-4912 to undergo secondary weighbridge verification in presence of warehouse supervisor.
+Recommended Action:
+1. Immediate Vehicle Hold: Halt unloading immediately.
+2. Gross Re-Weighing: Require KA-01-AG-4912 to undergo secondary weighbridge verification.
 3. Crate Audit: Inspect seal SL-99214-B and conduct physical crate count across 40 crates.
-4. Correct Bilty & E-Way Bill: Cancel current LR line item note. Issue amended LR with verified net weight and explicit GTA GST treatment."""
+4. Correct Bilty & E-Way Bill: Amend LR with verified net weight prior to handover."""
 
 SAMPLE_3_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
-| Item | Extracted Value |
-|---|---|
-| **Document Type** | Tax Invoice & Consignment Note (Bilty) |
-| **Document Number & Date** | Invoice/LR No: SRL-MUM-2026-90412 | Date: 26-10-2026 |
-| **Carrier / Transporter Name** | Surya Roadways & Logistics Services |
-| **Consignor (Sender)** | Godrej Industrial Chemicals Ltd (Maharashtra - GSTIN 27AAACG1122K1Z8) |
-| **Consignee (Receiver)** | Southern Agro Fertilizers Pvt Ltd (Tamil Nadu - GSTIN 33AABCS4455L1Z1) |
-| **Vehicle & Seal** | MH-43-BP-7819 | Seal: SR-SEAL-88219 |
-| **Weight Particulars** | Declared: 7,500 kg (150 Bags) | Weighbridge Net: 6,800 kg |
-| **Billed Total** | INR 54,285.00 (Base: 42,000 + Fuel: 4,200 + Loading: 2,000 + Detention: 1,500) |
+
+- Document Type: Tax Invoice & Consignment Note (Bilty)
+- Document Number & Date: Invoice/LR No: SRL-MUM-2026-90412 | Date: 26-10-2026
+- Carrier / Transporter Name: Surya Roadways & Logistics Services
+- Consignor (Sender): Godrej Industrial Chemicals Ltd (Maharashtra - GSTIN 27AAACG1122K1Z8)
+- Consignee (Receiver): Southern Agro Fertilizers Pvt Ltd (Tamil Nadu - GSTIN 33AABCS4455L1Z1)
+- Vehicle & Seal: MH-43-BP-7819 | Seal: SR-SEAL-88219
+- Weight Particulars: Declared: 7,500 kg (150 Bags) | Weighbridge Net: 6,800 kg
+- Billed Total: INR 54,285.00 (Base: 42,000 + Fuel: 4,200 + Loading: 2,000 + Detention: 1,500)
 
 ---
 
 ### 2. Discrepancy & Red Flag Audit
-| Check | Observation | Status |
-|---|---|---|
-| **Weight Reconciliation** | Declared 7,500 kg vs. Weighbridge 6,800 kg (700 kg / 14 bags missing). | **[WARNING]** |
-| **E-Way Bill Validity** | Expired on 23-10-2026; dispatch date is 26-10-2026. High risk of Sec 129 seizure. | **[WARNING]** |
-| **Arithmetic Integrity** | Line items total INR 49,700, but stated subtotal is INR 51,700 (INR 2,000 unexplained overcharge). | **[WARNING]** |
-| **GST Classification** | Interstate trip (MH -> TN) charged as CGST/SGST instead of IGST 5%. | **[WARNING]** |
-| **Consignee Receipt** | Consignee signature field is blank / unsigned upon delivery. | **[WARNING]** |
+
+- Weight Reconciliation: Declared 7,500 kg vs. Weighbridge 6,800 kg (700 kg / 14 bags missing). [WARNING]
+- E-Way Bill Validity: Expired on 23-10-2026; dispatch date is 26-10-2026. High risk of Sec 129 seizure. [WARNING]
+- Arithmetic Integrity: Line items total INR 49,700, but stated subtotal is INR 51,700 (INR 2,000 unexplained overcharge). [WARNING]
+- GST Classification: Interstate trip (MH -> TN) charged as CGST/SGST instead of IGST 5%. [WARNING]
+- Consignee Receipt: Consignee signature field is unsigned upon delivery. [WARNING]
 
 ---
 
 ### 3. Executive Decision & Action
-**Verdict:** **HOLD FOR REVIEW**
-- Reconcile physical shortage of 14 bags at Taloja dispatch.
+
+Verdict: HOLD FOR REVIEW
+- Reconcile physical shortage of 14 bags at dispatch hub.
 - Issue corrected invoice removing INR 2,000 math gap and charging 5% IGST.
-- Re-generate valid E-Way Bill before road transit clearance.
-"""
+- Re-generate valid E-Way Bill before road transit clearance."""
 
 # 4. Main Workspace
 col_upload, col_result = st.columns([1, 1], gap="medium")
@@ -160,7 +176,7 @@ with col_upload:
 with col_result:
     st.subheader("2. Audit & Compliance Analysis")
     
-    # CASE A: Demo Buttons Clicked (Zero API calls)
+    # CASE A: Demo Buttons Clicked
     if demo_btn_1:
         st.success("✅ Sample 1 Loaded: Deccan Express Consignment Note")
         st.markdown(SAMPLE_AUDIT_TEXT)
@@ -193,7 +209,6 @@ with col_result:
                 st.error("Setup Incomplete: Please add `GROQ_API_KEY` to your Streamlit Cloud Secrets dashboard.")
                 st.stop()
 
-            # Extract text safely from TXT or PDF
             try:
                 uploaded_file.seek(0)
                 extracted_text = ""
@@ -229,7 +244,7 @@ Structure your response strictly using these Markdown sections:
 - **Origin & Destination:** 
 - **Vehicle / Container / Seal Number:** 
 - **Weight & Volume (Gross / Net / Chargeable):** 
-- **Total Freight Charges & Currency:** (Explicitly list freight rate, detention/demurrage terms, fuel surcharge, GST/taxes if present)
+- **Total Freight Charges & Currency:**
 
 ### 2. Discrepancy & Red Flag Audit
 Scan every field and mark status clearly with [CLEAN] or [WARNING]:
