@@ -25,20 +25,18 @@ st.markdown("""
 st.title("📦 FreightCheck AI")
 st.caption("Enterprise Logistics Document Auditor & Discrepancy Detection Engine (Powered by Groq High-Speed Inference)")
 
-# 2. PDF Generator Helper (Safe cursor positioning & ASCII mapping)
+# 2. PDF Generator Helper (Formatted headers & safe ASCII mapping)
 def create_pdf_report(report_text: str) -> bytes:
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
     # Title Header
-    pdf.set_font("Helvetica", "B", 14)
-    pdf.cell(w=pdf.epw, h=10, text="FreightCheck AI - Forensic Audit Report", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.cell(w=pdf.epw, h=9, text="FreightCheck AI - Forensic Audit Report", align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(3)
     
-    pdf.set_font("Helvetica", size=9)
-    
-    # Replace symbols not supported by standard PDF Helvetica
+    # Replace non-latin symbols
     text_clean = (
         report_text.replace("₹", "INR ")
         .replace("➔", "->")
@@ -54,15 +52,26 @@ def create_pdf_report(report_text: str) -> bytes:
     
     for line in clean_encoded.split("\n"):
         line_str = line.strip()
-        if not line_str:
-            pdf.ln(3)
+        if not line_str or set(line_str).issubset({"-", "|", " "}):
+            if not line_str:
+                pdf.ln(2)
             continue
-        # Skip markdown table divider lines like |---|---|
-        if set(line_str).issubset({"-", "|", " "}):
-            continue
-        # Ensure cursor resets to left margin with full usable width
+            
         pdf.set_x(pdf.l_margin)
-        pdf.multi_cell(w=pdf.epw, h=5, text=line_str, new_x="LMARGIN", new_y="NEXT")
+        
+        # Check for Markdown Section Headers
+        if line_str.startswith("###"):
+            header_text = line_str.lstrip("#").strip()
+            pdf.ln(2)
+            pdf.set_font("Helvetica", "B", 11)
+            pdf.multi_cell(w=pdf.epw, h=6, text=header_text, new_x="LMARGIN", new_y="NEXT")
+            pdf.set_font("Helvetica", size=9)
+        elif line_str.startswith("**Verdict:"):
+            pdf.set_font("Helvetica", "B", 10)
+            pdf.multi_cell(w=pdf.epw, h=5, text=line_str.replace("**", ""), new_x="LMARGIN", new_y="NEXT")
+            pdf.set_font("Helvetica", size=9)
+        else:
+            pdf.multi_cell(w=pdf.epw, h=4.5, text=line_str, new_x="LMARGIN", new_y="NEXT")
         
     return bytes(pdf.output())
 
