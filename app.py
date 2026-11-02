@@ -2,6 +2,7 @@ import streamlit as st
 from groq import Groq
 import pypdf
 import io
+from fpdf import FPDF
 
 # 1. Page Configuration & Professional Styling
 st.set_page_config(
@@ -24,7 +25,23 @@ st.markdown("""
 st.title("📦 FreightCheck AI")
 st.caption("Enterprise Logistics Document Auditor & Discrepancy Detection Engine (Powered by Groq High-Speed Inference)")
 
-# 2. Secure API Key Retrieval
+# 2. PDF Generator Helper
+def create_pdf_report(report_text: str) -> bytes:
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "FreightCheck AI - Forensic Audit Report", new_x="LMARGIN", new_y="NEXT", align="C")
+    pdf.ln(4)
+    pdf.set_font("Helvetica", size=9)
+    
+    clean_text = report_text.encode("latin-1", "replace").decode("latin-1")
+    for line in clean_text.split("\n"):
+        pdf.multi_cell(0, 5, line)
+    
+    return bytes(pdf.output())
+
+# 3. Secure API Key Retrieval
 try:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"].strip()
 except Exception:
@@ -37,7 +54,7 @@ SAMPLE_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 - **Carrier / Transporter Name:** Deccan Express Logistics Pvt Ltd
 - **Consignor (Sender):** Apex Industrial Tools Pvt Ltd (GSTIN: 29AABCA1234F1Z5) | Invoice: INV-45920 (Value: INR 8,45,000)
 - **Consignee (Receiver):** Metro Hyper Retail Logistics Hub (GSTIN: 29XYZPA9876Q1Z2) | E-Way Bill: 531098234710 (Expiry: 28-10-2026)
-- **Origin & Destination:** Peenya Industrial Area, Bengaluru, Karnataka ➔ Whitefield Warehouse Cluster, Bengaluru, Karnataka
+- **Origin & Destination:** Peenya Industrial Area, Bengaluru, Karnataka -> Whitefield Warehouse Cluster, Bengaluru, Karnataka
 - **Vehicle / Container / Seal Number:** Vehicle: KA-01-AG-4912 | Seal Number: SL-99214-B (Intact) | Driver: Ramesh Kumar (+91 98450 12345)
 - **Weight & Volume (Gross / Net / Chargeable):** 
   * Declared Gross Cargo Weight (Invoice): 4,850 KG
@@ -59,21 +76,21 @@ SAMPLE_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 
 ### 2. Discrepancy & Red Flag Audit
 
-- **Mandatory Fields Check:** **[CLEAN]**
+- **Mandatory Fields Check:** [CLEAN]
   * Consignor and Consignee GSTINs, addresses, invoice number, and e-way bill number with validity (valid through 28-10-2026 for intra-city transit) are present.
   * Transporter and driver authorization entries are acknowledged.
 
-- **Calculations & Charge Verification:** **[WARNING]**
-  * **Freight Charges:** The arithmetic sum of charges tallies correctly (18,500 + 1,200 + 800 = INR 20,500). However, statutory Goods Transport Agency (GTA) GST compliance (whether billed at 5% RCM or 12% FCM) is not stated.
-  * **Severe Weight & Discrepancy Calculation Error:** 
+- **Calculations & Charge Verification:** [WARNING]
+  * Freight Charges: The arithmetic sum of charges tallies correctly (18,500 + 1,200 + 800 = INR 20,500). However, statutory Goods Transport Agency (GTA) GST compliance (whether billed at 5% RCM or 12% FCM) is not stated.
+  * Severe Weight & Discrepancy Calculation Error: 
     * The weighbridge net weight is calculated as: 5,200 KG (Gross) - 3,200 KG (Tare) = 2,000 KG (Net).
-    * The invoice declared cargo gross weight is **4,850 KG**, which indicates a shortfall of **2,850 KG** (over 58% missing weight).
-    * The clerk's "Discrepancy Note" errantly compares the total laden vehicle weight (5,200 KG) to the declared invoice weight (4,850 KG) and states: *"Gross weight recorded exceeds declared invoice weight by 350 KG."* This conflates total vehicle weight with cargo payload, masking a massive physical shortage or an erroneous weighbridge tare entry.
+    * The invoice declared cargo gross weight is 4,850 KG, which indicates a shortfall of 2,850 KG (over 58% missing weight).
+    * The clerk's Discrepancy Note errantly compares total laden vehicle weight (5,200 KG) to declared invoice weight (4,850 KG) and states: Gross weight recorded exceeds declared invoice weight by 350 KG. This conflates vehicle weight with cargo payload, masking a massive shortage or erroneous tare entry.
 
-- **Risk & Liability Warnings:** **[WARNING]**
-  * **En-Route Regulatory Risk:** If intercepted by GST/RTO authorities, the drastic variance between the E-Way bill declared weight (4,850 KG) and physical net weight (2,000 KG) constitutes a major violation under Section 129 of the CGST Act, exposing the shipment to detention and penalties.
-  * **Cargo Shortage / Theft Hazard:** If the vehicle is carrying only 2,000 KG across 40 crates, crates may be partially empty, or the weighbridge entry is incorrect.
-  * **Omission of Detention Terms:** No terms are outlined for unloading detention at Whitefield Hub.
+- **Risk & Liability Warnings:** [WARNING]
+  * En-Route Regulatory Risk: Drastic variance between E-Way bill declared weight (4,850 KG) and physical net weight (2,000 KG) violates Section 129 of CGST Act, exposing the shipment to detention and penalty.
+  * Cargo Shortage / Theft Hazard: Potential crate pilferage or weighbridge entry fault.
+  * Omission of Detention Terms: No terms outlined for unloading detention at Whitefield Hub.
 
 ---
 
@@ -82,10 +99,10 @@ SAMPLE_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 **Verdict:** **HOLD FOR REVIEW**
 
 **Recommended Action for Dispatch / Billing Manager:**
-1. **Immediate Vehicle Hold:** Halt dispatch/unloading immediately. Do not release the vehicle or accept the delivery based on this LR.
-2. **Gross Re-Weighing:** Require KA-01-AG-4912 to undergo an immediate secondary weighbridge verification (Gross, Tare, Net) in the presence of an independent surveyor or warehouse supervisor.
-3. **Crate Audit:** Inspect seal `SL-99214-B` and conduct a physical crate count and sample check across the 40 crates to determine whether cargo is missing or if the initial tare weight/gross weight was entered in error.
-4. **Correct Bilty & E-Way Bill:** Cancel the current LR line item note. Once the true weight is established, issue an amended LR with corrected net cargo weight and explicitly note GTA GST treatment (e.g., *GST payable by Consignee under RCM*) before cargo handover."""
+1. Immediate Vehicle Hold: Halt dispatch/unloading immediately. Do not release vehicle or accept delivery based on this LR.
+2. Gross Re-Weighing: Require KA-01-AG-4912 to undergo secondary weighbridge verification in presence of warehouse supervisor.
+3. Crate Audit: Inspect seal SL-99214-B and conduct physical crate count across 40 crates.
+4. Correct Bilty & E-Way Bill: Cancel current LR line item note. Issue amended LR with verified net weight and explicit GTA GST treatment."""
 
 SAMPLE_3_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 | Item | Extracted Value |
@@ -97,7 +114,7 @@ SAMPLE_3_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 | **Consignee (Receiver)** | Southern Agro Fertilizers Pvt Ltd (Tamil Nadu - GSTIN 33AABCS4455L1Z1) |
 | **Vehicle & Seal** | MH-43-BP-7819 | Seal: SR-SEAL-88219 |
 | **Weight Particulars** | Declared: 7,500 kg (150 Bags) | Weighbridge Net: 6,800 kg |
-| **Billed Total** | ₹54,285.00 (Base: ₹42,000 + Fuel: ₹4,200 + Loading: ₹2,000 + Detention: ₹1,500) |
+| **Billed Total** | INR 54,285.00 (Base: 42,000 + Fuel: 4,200 + Loading: 2,000 + Detention: 1,500) |
 
 ---
 
@@ -106,7 +123,7 @@ SAMPLE_3_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 |---|---|---|
 | **Weight Reconciliation** | Declared 7,500 kg vs. Weighbridge 6,800 kg (700 kg / 14 bags missing). | **[WARNING]** |
 | **E-Way Bill Validity** | Expired on 23-10-2026; dispatch date is 26-10-2026. High risk of Sec 129 seizure. | **[WARNING]** |
-| **Arithmetic Integrity** | Line items total ₹49,700, but stated subtotal is ₹51,700 (₹2,000 unexplained overcharge). | **[WARNING]** |
+| **Arithmetic Integrity** | Line items total INR 49,700, but stated subtotal is INR 51,700 (INR 2,000 unexplained overcharge). | **[WARNING]** |
 | **GST Classification** | Interstate trip (MH -> TN) charged as CGST/SGST instead of IGST 5%. | **[WARNING]** |
 | **Consignee Receipt** | Consignee signature field is blank / unsigned upon delivery. | **[WARNING]** |
 
@@ -115,11 +132,11 @@ SAMPLE_3_AUDIT_TEXT = """### 1. Document Classification & Key Extraction
 ### 3. Executive Decision & Action
 **Verdict:** **HOLD FOR REVIEW**
 - Reconcile physical shortage of 14 bags at Taloja dispatch.
-- Issue corrected invoice removing ₹2,000 math gap and charging 5% IGST.
+- Issue corrected invoice removing INR 2,000 math gap and charging 5% IGST.
 - Re-generate valid E-Way Bill before road transit clearance.
 """
 
-# 3. Main Workspace
+# 4. Main Workspace
 col_upload, col_result = st.columns([1, 1], gap="medium")
 
 with col_upload:
@@ -147,21 +164,23 @@ with col_result:
     if demo_btn_1:
         st.success("✅ Sample 1 Loaded: Deccan Express Consignment Note")
         st.markdown(SAMPLE_AUDIT_TEXT)
+        pdf_bytes = create_pdf_report(SAMPLE_AUDIT_TEXT)
         st.download_button(
-            label="📥 Download Audit Summary (.txt)",
-            data=SAMPLE_AUDIT_TEXT,
-            file_name="FreightCheck_Audit_Sample_LR.txt",
-            mime="text/plain",
+            label="📥 Download Audit Summary (.pdf)",
+            data=pdf_bytes,
+            file_name="FreightCheck_Audit_Sample_LR.pdf",
+            mime="application/pdf",
             use_container_width=True
         )
     elif demo_btn_2:
         st.success("✅ Sample 2 Loaded: Surya Roadways Freight Invoice")
         st.markdown(SAMPLE_3_AUDIT_TEXT)
+        pdf_bytes = create_pdf_report(SAMPLE_3_AUDIT_TEXT)
         st.download_button(
-            label="📥 Download Audit Summary (.txt)",
-            data=SAMPLE_3_AUDIT_TEXT,
-            file_name="FreightCheck_Audit_Sample_Invoice.txt",
-            mime="text/plain",
+            label="📥 Download Audit Summary (.pdf)",
+            data=pdf_bytes,
+            file_name="FreightCheck_Audit_Sample_Invoice.pdf",
+            mime="application/pdf",
             use_container_width=True
         )
 
@@ -241,11 +260,12 @@ Provide a clear verdict: **APPROVED**, **HOLD FOR REVIEW**, or **REJECTED**, fol
                         audit_container.markdown(full_report)
 
                     st.success("Audit Completed Successfully")
+                    pdf_output = create_pdf_report(full_report)
                     st.download_button(
-                        label="📥 Download Audit Summary (.txt)",
-                        data=full_report,
-                        file_name=f"FreightCheck_Audit_{uploaded_file.name}.txt",
-                        mime="text/plain",
+                        label="📥 Download Audit Summary (.pdf)",
+                        data=pdf_output,
+                        file_name=f"FreightCheck_Audit_{uploaded_file.name}.pdf",
+                        mime="application/pdf",
                         use_container_width=True
                     )
 
